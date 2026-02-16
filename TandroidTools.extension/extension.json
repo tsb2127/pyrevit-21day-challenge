@@ -1,0 +1,13 @@
+{
+    "builtin": "False",
+    "default_enabled": "True",
+    "type": "extension",
+    "rocket_mode_compatible": "True",
+    "name": "YOUR EXTENSION NAME",
+    "description": "YOUR EXTENSION DESCRIPTION",
+    "author": "YOUR NAME",
+    "author_profile": "https://www.linkedin.com/in/YOUR-USER-NAME/",
+    "url": "https://github.com/USERNAME/PYREVIT-EXTENSION-REPO.git",
+    "website": "https://WWW.YOUR-WEBSITE.COM",
+    "dependencies": []
+}

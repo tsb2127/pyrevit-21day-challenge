@@ -1,0 +1,8 @@
+layout:
+  - pyRevit StarterKit 2.0
+  - Resources
+  - pyRevit Challenge
+  - Dev
+
+# P.S.   bundle.yaml file is used for ordering and hiding buttons and bundles.
+# P.S.S. The order will be applied correctly after restarting Revit
