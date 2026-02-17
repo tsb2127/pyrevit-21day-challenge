@@ -3,3 +3,6 @@ __pycache__/
 *.log
 .venv/
 .idea/
+RevitAPI Stubs/
+RevitAPI_Stubs/
+*.iml
