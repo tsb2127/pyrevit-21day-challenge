@@ -70,11 +70,16 @@ t.Start()  # 🔓 Allow Changes
 
 for door in all_doors:
     #2️⃣ Find Door Swing (.Mirrored)
-    value = 'Mirrored' if door.Mirrored else 'Regular'
+    value = 'Mirrored' if door.Mirrored else 'Regular' #🚨 Ensure correct StorageType
 
     #3️⃣ Write To Another Parameter
-    param = door.get_Parameter(BuiltInParameter.ALL_MODEL_MARK)
-    param.Set(value)
+    # param = door.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS) # NB! Should be VariesByGroup to avoid issues!
+    param = door.LookupParameter('DoorState')
+    #🚨 Ensure ShareParameter Exists
+    if param:
+        param.Set(value)
+    else:
+        forms.alert('Parameter DoorState not found ...', exitscript=True )
 
 t.Commit()  #🔒 Confirm Changes
 
