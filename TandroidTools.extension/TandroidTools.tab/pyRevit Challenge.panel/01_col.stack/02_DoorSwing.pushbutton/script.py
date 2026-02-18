@@ -50,38 +50,33 @@ uidoc  = __revit__.ActiveUIDocument          # __revit__ is internal variable in
 app    = __revit__.Application
 output = script.get_output()                 # pyRevit Output Menu
 
-# ╔╦╗╔═╗╦╔╗╔
-# ║║║╠═╣║║║║
-# ╩ ╩╩ ╩╩╝╚╝
+# ╔═╗╔╦╗╦╔╦╗
+# ║╣  ║║║ ║
+# ╚═╝═╩╝╩ ╩  EDIT
 #░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-#🤖 Automate Your Boring Work Here
 
+# #0️⃣ Get Single Door
+# from Autodesk.Revit.UI.Selection import ObjectType
+# ref  = uidoc.Selection.PickObject(ObjectType.Element)
+# door = doc.GetElement(ref)
 
-#PROOF OF CONCEPT
+#1️⃣ Get All Doors
+cat       = BuiltInCategory.OST_Doors
+all_doors = FilteredElementCollector(doc).OfCategory(cat).WhereElementIsNotElementType().ToElements()
 
-#0️⃣ Get Single Door
-from Autodesk.Revit.UI.Selection import ObjectType
-ref  = uidoc.Selection.PickObject(ObjectType.Element)
-door = doc.GetElement(ref)
+# 🔓 Allow Changes with Revit API
+t = Transaction(doc, 'Door Swing')
+t.Start()  # 🔓 Allow Changes
 
-#1️⃣ Find Door Swing (.Mirrored)
-print(door.Mirrored)
-value = 'Mirrored' if door.Mirrored else 'Not Mirrored'
+for door in all_doors:
+    #2️⃣ Find Door Swing (.Mirrored)
+    value = 'Mirrored' if door.Mirrored else 'Regular'
 
-#🔓 Allow Changes with Revit API
-t = Transaction(doc, '02 - Door Swing')
-t.Start()   #🔓 Allow Changes
-
-
-#2️⃣ Write To Another Parameter
-
-#Get Built-In Parameter
-param = door.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS)
-param.Set(value)
-
+    #3️⃣ Write To Another Parameter
+    param = door.get_Parameter(BuiltInParameter.ALL_MODEL_MARK)
+    param.Set(value)
 
 t.Commit()  #🔒 Confirm Changes
-
 
 #███████████████████████████████████████████████████████████████████████████
 # Happy Coding!
