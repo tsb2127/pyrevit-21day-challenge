@@ -57,11 +57,30 @@ output = script.get_output()                 # pyRevit Output Menu
 #🤖 Automate Your Boring Work Here
 
 
+#PROOF OF CONCEPT
 
-#🚧 Remove This Code Example
-from reusable_code._example import default_print    # import reusable code from .../lib/reusable_code/_example.py
-default_print(btn_name=__title__)                   # Display default print message
+#0️⃣ Get Single Door
+from Autodesk.Revit.UI.Selection import ObjectType
+ref  = uidoc.Selection.PickObject(ObjectType.Element)
+door = doc.GetElement(ref)
 
+#1️⃣ Find Door Swing (.Mirrored)
+print(door.Mirrored)
+value = 'Mirrored' if door.Mirrored else 'Not Mirrored'
+
+#🔓 Allow Changes with Revit API
+t = Transaction(doc, '02 - Door Swing')
+t.Start()   #🔓 Allow Changes
+
+
+#2️⃣ Write To Another Parameter
+
+#Get Built-In Parameter
+param = door.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS)
+param.Set(value)
+
+
+t.Commit()  #🔒 Confirm Changes
 
 
 #███████████████████████████████████████████████████████████████████████████
