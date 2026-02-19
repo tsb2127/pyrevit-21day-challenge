@@ -79,13 +79,17 @@ def get_user_input():
 from pyrevit import forms
 sel_views = forms.select_views()
 
+# 🚨 Ensure User Input
+if not user_input
+    forms.alert('Please select a view', exitscript=True)
 
 #2️⃣ Define Rules
 #------------------------------
 user_input = get_user_input()
 
+# 🚨 Ensure User Input
 if not user_input:
-    script.exit()
+    forms.alert('No naming rules, please try again..', exitscript=True)
 
 PREFIX     = user_input['prefix']
 FIND       = user_input['find']
