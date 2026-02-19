@@ -14,10 +14,11 @@ How-To:
 
 ________________________________________________________________
 To-Do:
-[FEATURE] - Custom UI for Naming Forms
+[Edge Cases] - Stress Test
 
 ________________________________________________________________
 Last Updates:
+- [02.18.2026] v2 Refactored
 - [02.18.2026] v1 Proof of Concept 
 ________________________________________________________________
 Author: Tanmay Bhalerao (Template by Erik Frits (from LearnRevitAPI.com))"""
@@ -46,38 +47,72 @@ uidoc  = __revit__.ActiveUIDocument          # __revit__ is internal variable in
 app    = __revit__.Application
 output = script.get_output()                 # pyRevit Output Menu
 
-# ╔╦╗╔═╗╦╔╗╔
-# ║║║╠═╣║║║║
-# ╩ ╩╩ ╩╩╝╚╝
+# ╔═╗╦ ╦╔╗╔╔═╗╔╦╗╦╔═╗╔╗╔╔═╗
+# ╠╣ ║ ║║║║║   ║ ║║ ║║║║╚═╗
+# ╚  ╚═╝╝╚╝╚═╝ ╩ ╩╚═╝╝╚╝╚═╝
+#░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+def get_user_input():
+    """Function to get user input with rpw.ui.forms.FlexForm"""
+    from rpw.ui.forms import (FlexForm, Label, ComboBox, TextBox, Separator, Button, CheckBox)
+
+    components = [
+        Label('Prefix:'),   TextBox('prefix'),
+        Label('Find:'),     TextBox('find'),
+        Label('Replace:'),  TextBox('replace'),
+        Label('Sufix:'),    TextBox('sufix'),
+        Separator(),
+        Button('Select', is_default=True)]
+
+    form = FlexForm('Name Swapper', components)
+    form.show()
+
+    return form.values
+
+
+# ╦═╗╔═╗╔═╗╔═╗╔═╗╔╦╗╔═╗╦═╗╔═╗╔╦╗
+# ╠╦╝║╣ ╠╣ ╠═╣║   ║ ║ ║╠╦╝║╣  ║║
+# ╩╚═╚═╝╚  ╩ ╩╚═╝ ╩ ╚═╝╩╚═╚═╝═╩╝
 #░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 
 #1️⃣ Select Views
+#------------------------------
 from pyrevit import forms
-selected_views = forms.select_views()
+sel_views = forms.select_views()
+
 
 #2️⃣ Define Rules
-PREFIX     = 'Pre_'
-FIND       = 'Find'
-REPLACE    = 'Replace'
-SUFFIX     = '_Suf'
+#------------------------------
+user_input = get_user_input()
+
+if not user_input:
+    script.exit()
+
+PREFIX     = user_input['prefix']
+FIND       = user_input['find']
+REPLACE    = user_input['replace']
+SUFFIX     = user_input['sufix']
+
 
 #🔓 Start Transaction (Allow API Changes)
-t = Transaction(doc, "Name Swapper")
-t.Start()       #🔓 Allow Changes
+t = Transaction(doc, __title__)
+t.Start()   #🔓 Allow Changes
 
 #3️⃣ Change View Name
-print('Renaming Views:')
+#------------------------------
+print('Renaming Selected Views:')
 print('-'*50)
-for view in selected_views:
+for view in sel_views:
     old_name = view.Name
-    new_name =  PREFIX + old_name.replace(FIND, REPLACE) + SUFFIX
+    new_name = PREFIX + old_name.replace(FIND, REPLACE) + SUFFIX
 
-    view.Name = new_name
+    view.Name = new_name # Change View Name
 
-    # 4️⃣ Report the change
-    print('{} ➡️ {}'.format(old_name, new_name))
+    #4️⃣ Report the change
+    # ------------------------------
+    print("{} ➡️ {}".format(old_name, new_name))
 
-t.Commit()      #🔒 # Confirm Changes
+t.Commit()  #🔒 Confirm Changes
+
 
 
 #███████████████████████████████████████████████████████████████████████████
