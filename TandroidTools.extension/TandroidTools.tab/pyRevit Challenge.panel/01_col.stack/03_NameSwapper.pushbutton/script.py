@@ -1,30 +1,26 @@
 # -*- coding: utf-8 -*-
 __title__   = "03 - Name Swapper"
 __doc__     = """Version = 1.0
-Date    = 01.01.2026
+Date    = 02.18.2026
 ________________________________________________________________
 Description:
-Placeholder for pyRevit .pushbutton.
-Use it as a base for your new pyRevit tool.
+Batch rename selected Revit views.
 
 ________________________________________________________________
 How-To:
-1. Step 1...
-2. Step 2...
-3. Step 3...
+1. Select views in Revit or run tool to choose from list.
+2. Enter rename pattern (prefix/suffix/find-replace).
+3. Confirm and apply changes.
 
 ________________________________________________________________
 To-Do:
-[FEATURE] - Describe Your Feature...
-[BUG]     - Describe Your BUG...
+[FEATURE] - Custom UI for Naming Forms
 
 ________________________________________________________________
 Last Updates:
-- [01.01.2026] v1.0 Change Description
-- [01.01.2026] v0.5 Change Description
-- [01.01.2026] v0.1 Change Description 
+- [02.18.2026] v1 Proof of Concept 
 ________________________________________________________________
-Author: Erik Frits (from LearnRevitAPI.com)"""
+Author: Tanmay Bhalerao (Template by Erik Frits (from LearnRevitAPI.com))"""
 
 # ╦╔╦╗╔═╗╔═╗╦═╗╔╦╗╔═╗
 # ║║║║╠═╝║ ║╠╦╝ ║ ╚═╗
@@ -54,14 +50,34 @@ output = script.get_output()                 # pyRevit Output Menu
 # ║║║╠═╣║║║║
 # ╩ ╩╩ ╩╩╝╚╝
 #░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-#🤖 Automate Your Boring Work Here
 
+#1️⃣ Select Views
+from pyrevit import forms
+selected_views = forms.select_views()
 
+#2️⃣ Define Rules
+PREFIX     = 'Pre_'
+FIND       = 'Find'
+REPLACE    = 'Replace'
+SUFFIX     = '_Suf'
 
-#🚧 Remove This Code Example
-from reusable_code._example import default_print    # import reusable code from .../lib/reusable_code/_example.py
-default_print(btn_name=__title__)                   # Display default print message
+#🔓 Start Transaction (Allow API Changes)
+t = Transaction(doc, "Name Swapper")
+t.Start()       #🔓 Allow Changes
 
+#3️⃣ Change View Name
+print('Renaming Views:')
+print('-'*50)
+for view in selected_views:
+    old_name = view.Name
+    new_name =  PREFIX + old_name.replace(FIND, REPLACE) + SUFFIX
+
+    view.Name = new_name
+
+    # 4️⃣ Report the change
+    print('{} ➡️ {}'.format(old_name, new_name))
+
+t.Commit()      #🔒 # Confirm Changes
 
 
 #███████████████████████████████████████████████████████████████████████████
