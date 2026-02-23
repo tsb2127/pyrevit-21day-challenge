@@ -1,5 +1,51 @@
 # -*- coding: utf-8 -*-
 __title__   = "04 - Flat Summarizer"
+__doc__     = """Version = 1.0
+Date    = 02.22.2026
+________________________________________________________________
+Description:
+Groups rooms by Building + Flat parameters and calculates
+aggregated area totals for specific room types (Living, Balcony).
+Writes the summed values back into shared room parameters:
+    - [Sum m²] - Living
+    - [Sum m²] - Balcony
+
+Proof-of-concept implementation for flat-level area summarization.
+
+________________________________________________________________
+How-To:
+1. Ensure Rooms contain:
+       - "Building" parameter
+       - "Flat" parameter
+       - Occupancy (ROOM_OCCUPANCY) properly filled
+2. Ensure shared output parameters exist:
+       - [Sum m²] - Living
+       - [Sum m²] - Balcony
+3. Run the tool from pyRevit.
+4. Tool groups rooms by Building_Flat key.
+5. Living and Balcony areas are summed and written back to all rooms
+   belonging to that flat.
+
+________________________________________________________________
+To-Do:
+[FEATURE]
+- Add null-safety for missing parameters
+- Add category filters for occupancy types
+- Add configurable occupancy mapping (not hardcoded)
+- Add reporting UI instead of print()
+- Add summary preview before write
+
+[BUG]
+- No protection against missing output parameters
+- No StorageType validation before Set()
+- Assumes AsString() always returns value
+- No check for empty Occupancy
+
+________________________________________________________________
+Last Updates:
+- [01.01.2026] v1.0 Initial proof-of-concept flat aggregation logic
+________________________________________________________________
+Author: Tanmay Bhalerao (from Erik Frit's template @ LearnRevitAPI.com)"""
 
 # ╦╔╦╗╔═╗╔═╗╦═╗╔╦╗╔═╗
 # ║║║║╠═╝║ ║╠╦╝ ║ ╚═╗
@@ -10,19 +56,25 @@ from Autodesk.Revit.DB import *
 #pyRevit
 from pyrevit import forms, script
 
+#.NET Imports
+import clr
+clr.AddReference('System')
+from System.Collections.Generic import List
+
+
 # ╦  ╦╔═╗╦═╗╦╔═╗╔╗ ╦  ╔═╗╔═╗
 # ╚╗╔╝╠═╣╠╦╝║╠═╣╠╩╗║  ║╣ ╚═╗
 #  ╚╝ ╩ ╩╩╚═╩╩ ╩╚═╝╩═╝╚═╝╚═╝
 #░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 doc    = __revit__.ActiveUIDocument.Document #type:Document
 uidoc  = __revit__.ActiveUIDocument          # __revit__ is internal variable in pyRevit
+app    = __revit__.Application
 output = script.get_output()                 # pyRevit Output Menu
 
 # ╔╦╗╔═╗╦╔╗╔
 # ║║║╠═╣║║║║
 # ╩ ╩╩ ╩╩╝╚╝
 #░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-#🤖 Automate Your Boring Work Here
 
 
 #1️⃣ Get All Rooms
@@ -33,21 +85,21 @@ from collections import defaultdict
 dict_flats = defaultdict(list)
 
 for room in all_rooms:
-    #🚨 Verify Parameters Exist!
-    try:
-        building = room.LookupParameter("Building").AsString()
-        flat     = room.LookupParameter("Flat").AsString()
-    except:
-        forms.alert("Missing Room Parameter ['Building', 'Flat'].\nPlease Verify and try again", exitscript=True)
+    # Get Parameters
+    p_building = room.LookupParameter("Building")
+    p_flat     = room.LookupParameter("Flat")
+
+    # Reading Parameter Values
+    building = p_building.AsString()
+    flat     = p_flat.AsString()
 
     if flat:
         key = "{}_{}".format(building, flat)
         dict_flats[key].append(room)
 
-
-# 🚨 Ensure Apartment-Rooms in Project
-if not dict_flats:
-    forms.alert("No Apartment Rooms. Please Verify And Try Again", exitscript=True)
+# Preview
+# for k,v in dict_flats.items():
+#     print(k, v)
 
 
 # Crate Transaction to Allow API Changes
@@ -57,90 +109,43 @@ t.Start()       #🔓 Allow Changes
 
 #3️⃣ Calculate Sums
 for key, list_of_rooms in dict_flats.items():
+    sum_m2_balcony = 0
+    sum_m2_living  = 0
 
-    # SUM/COUNT Placeholders
-    SUM_M2_BALCONY = 0.0
-    SUM_M2_LIVING  = 0.0
-    ROOM_COUNT     = 0
+    # DEV: Skip All Flats but one
+    # if '100' not in key:
+    #     continue
 
-    # Calculate Sums/Counts
     for room in list_of_rooms:
         occupancy = room.get_Parameter(BuiltInParameter.ROOM_OCCUPANCY).AsString()
-
-        #🚨 Skip/Warn Rooms Without Occupancy
-        if not occupancy:
-            link_room = output.linkify(room.Id)
-            print('Room is missing Occupancy parameter for correct calculation. Please verify room: {}'.format(link_room))
-            continue
-        # PS Technically all rooms need occupancy for certain workflows.
-        # e.g. Living/Balcony/Technical/Circulation/Common/Garage...
-
-
-        # Get Room Area in M2
         area_m2   = UnitUtils.ConvertFromInternalUnits(room.Area, UnitTypeId.SquareMeters)
         area_m2   = round(area_m2, 2)
 
-        # Check Occupancy
         if occupancy.lower() == 'balcony':
-            SUM_M2_BALCONY += area_m2
+            sum_m2_balcony += area_m2
 
         elif occupancy.lower() == 'living':
-            SUM_M2_LIVING += area_m2
+            sum_m2_living += area_m2
 
-        # Count Bedrooms
-        room_name = room.get_Parameter(BuiltInParameter.ROOM_NAME).AsString().lower()
-        if 'living' in room_name or 'bed' in room_name:
-            ROOM_COUNT += 1
 
-    # Convert SUMS to Internal Units
-    sum_ft2_balcony = UnitUtils.ConvertToInternalUnits(SUM_M2_BALCONY, UnitTypeId.SquareMeters)
-    sum_ft2_living  = UnitUtils.ConvertToInternalUnits(SUM_M2_LIVING, UnitTypeId.SquareMeters)
+    print('Living: {}m2'.format(sum_m2_living))
+    print('Balcon: {}m2'.format(sum_m2_balcony))
 
-    # Write Output Values
+    sum_ft2_balcony = UnitUtils.ConvertToInternalUnits(sum_m2_balcony, UnitTypeId.SquareMeters)
+    sum_ft2_living  = UnitUtils.ConvertToInternalUnits(sum_m2_living, UnitTypeId.SquareMeters)
+
+
     for room in list_of_rooms:
-        # Get Parameters
         p_out_balcony = room.LookupParameter('[Sum m²] - Balcony')
         p_out_living  = room.LookupParameter('[Sum m²] - Living')
-        p_out_count   = room.LookupParameter('RoomCount')
 
-        # 🚨 Ensure Output Parameters Exist
-        if not p_out_living or not p_out_balcony or not p_out_count:
-            forms.alert('Rooms missing output parameters [...]', exitscript=True)
-
-        # Write Output Sums
         p_out_living.Set(sum_ft2_living)
         p_out_balcony.Set(sum_ft2_balcony)
-        p_out_count.Set(str(ROOM_COUNT))
 
+    print('---')
 
 t.Commit()      #🔒 Accept Changes
 
+
 #███████████████████████████████████████████████████████████████████████████
 # Happy Coding!
-
-
-
-
-
-
-#📦 Variables
-uidoc      = __revit__.ActiveUIDocument
-
-#👉 Get Selected Elements
-el_ids = uidoc.Selection.GetElementIds()
-elems  = [doc.GetElement(el_id) for el_id in el_ids]  # This is List Comprehension
-
-#✂️ Filter Un/Grouped Elements
-el_no_group = [el for el in elems if el.GroupId == ElementId.InvalidElementId]
-el_group    = [el for el in elems if el.GroupId != ElementId.InvalidElementId]
-
-#🧮 Count Elements
-print('Group Elements: {}'.format(el_group))
-print('No Group Elements: {}'.format(len(el_no_group)))
-
-
-
-
-
-
-
