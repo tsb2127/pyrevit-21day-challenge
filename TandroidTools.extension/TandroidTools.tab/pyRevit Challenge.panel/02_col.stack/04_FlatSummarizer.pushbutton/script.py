@@ -91,9 +91,14 @@ all_rooms = FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_Rooms).
 from collections import defaultdict
 dict_flats = defaultdict(list)
 
+
 for room in all_rooms:
-    building = room.LookupParameter("Building").AsString()
-    flat = room.LookupParameter("Flat").AsString()
+    #🚨 Verify Parameters Exist!
+    try:
+        building = room.LookupParameter("Building").AsString()
+        flat     = room.LookupParameter("Flat").AsString()
+    except:
+        forms.alert("Missing Room Parameter ['Building', 'Flat'].\nPlease Verify and try again", exitscript=True)
 
     if flat:
         key = "{}_{}".format(building, flat)
@@ -142,7 +147,11 @@ for key, list_of_rooms in dict_flats.items():
         # Get Parameters
         p_out_balcony = room.LookupParameter('[Sum m²] - Balcony')
         p_out_living = room.LookupParameter('[Sum m²] - Living')
-        p_out_count = room.LookupParameter('RoomCountsss')
+        p_out_count = room.LookupParameter('RoomCount')
+
+        # 🚨 Ensure Output Parameters Exist
+        if not p_out_living or not p_out_balcony or not p_out_count:
+            forms.alert('Rooms missing output parameters [...]', exitscript=True)
 
         # Write Output Sums
         p_out_living.Set(sum_ft2_living)
