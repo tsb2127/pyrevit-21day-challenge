@@ -54,15 +54,57 @@ output = script.get_output()                 # pyRevit Output Menu
 # ║║║╠═╣║║║║
 # ╩ ╩╩ ╩╩╝╚╝
 #░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-#🤖 Automate Your Boring Work Here
+#📦 Variables
+active_view   = doc.ActiveView
+all_patterns  = FilteredElementCollector(doc).OfClass(FillPatternElement).ToElements()
+solid_pattern = [i for i in all_patterns if i.GetFillPattern().IsSolidFill][0]
 
 
-
-#🚧 Remove This Code Example
-from reusable_code._example import default_print    # import reusable code from .../lib/reusable_code/_example.py
-default_print(btn_name=__title__)                   # Display default print message
+#1️⃣ Get Walls
+walls_in_view = FilteredElementCollector(doc, active_view.Id).OfClass(Wall).ToElements()
 
 
+#2️⃣ Sort Elements Based On Property/Parameter Value
+from collections import defaultdict
+dict_values = defaultdict(list)
+
+for wall in walls_in_view:
+    wall_type_name = wall.Name # 💡Change Rules Here...
+    dict_values[wall_type_name].append(wall)
+
+
+#🔓 Allow Changes with Revit API
+t = Transaction(doc, 'BIMpressionist Painter')
+t.Start()   #🔓 Allow Changes
+
+
+#3️⃣ Prepare Graphic Overrides Settings
+import random
+for key, list_elems in dict_values.items():
+
+    #Random Color
+    R = random.randint(0,255)
+    G = random.randint(0,255)
+    B = random.randint(0,255)
+    color = Color(R,G,B)
+
+    #⚙️ CREATE OVERRIDE SETTINGS
+    override_settings = OverrideGraphicSettings()
+
+    #⚙️ SURFACE FOREGROUND (PATTERN + COLOR)
+    override_settings.SetSurfaceForegroundPatternId(solid_pattern.Id)
+    override_settings.SetSurfaceForegroundPatternColor(color)
+
+    #⚙️ CUT FOREGROUND ( PATTERN + COLOR)
+    override_settings.SetCutForegroundPatternId(solid_pattern.Id)
+    override_settings.SetCutForegroundPatternColor(color)
+
+
+    #4️⃣ Override Element Graphics
+    for el in list_elems:
+        active_view.SetElementOverrides(el.Id, override_settings)
+
+t.Commit()  #🔒 Confirm Changes
 
 #███████████████████████████████████████████████████████████████████████████
 # Happy Coding!
