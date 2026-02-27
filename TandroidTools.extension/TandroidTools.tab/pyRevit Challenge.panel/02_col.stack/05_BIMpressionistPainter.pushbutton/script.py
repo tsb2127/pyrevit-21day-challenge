@@ -57,11 +57,17 @@ output = script.get_output()                 # pyRevit Output Menu
 #📦 Variables
 active_view   = doc.ActiveView
 all_patterns  = FilteredElementCollector(doc).OfClass(FillPatternElement).ToElements()
-solid_pattern = [i for i in all_patterns if i.GetFillPattern().IsSolidFill][0]
+solid_pattern = next((p for p in all_patterns if p.GetFillPattern().IsSolidFill), None)
+
+if not solid_pattern:
+    forms.alert('No Solid Fill pattern was found in this project.', exitscript=True)
 
 
 #1️⃣ Get Walls
-walls_in_view = FilteredElementCollector(doc, active_view.Id).OfClass(Wall).ToElements()
+walls_in_view = FilteredElementCollector(doc, active_view.Id).OfClass(Wall).WhereElementIsNotElementType().ToElements()
+
+if not walls_in_view:
+    forms.alert('No wall instances were found in the active view.', exitscript=True)
 
 
 #2️⃣ Sort Elements Based On Property/Parameter Value
@@ -82,7 +88,8 @@ t.Start()   #🔓 Allow Changes
 import random
 for key, list_elems in dict_values.items():
 
-    #Random Color
+    #Deterministic color per group key
+    random.seed(key)
     R = random.randint(0,255)
     G = random.randint(0,255)
     B = random.randint(0,255)
