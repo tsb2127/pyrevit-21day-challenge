@@ -1,30 +1,38 @@
 # -*- coding: utf-8 -*-
 __title__   = "12 - Click Counter"
 __doc__     = """Version = 1.0
-Date    = 01.01.2026
+Date    = 03.06.2026
 ________________________________________________________________
 Description:
-Placeholder for pyRevit .pushbutton.
-Use it as a base for your new pyRevit tool.
+Renumber elements in Revit by clicking them in sequence.
+
+The tool allows the user to:
+• Pick elements one-by-one in the desired order
+• Automatically increment a counter
+• Write the generated value into a specified parameter
 
 ________________________________________________________________
 How-To:
-1. Step 1...
-2. Step 2...
-3. Step 3...
+1. Run the tool
+2. Click elements in the order you want them numbered
+3. Press ESC to stop the selection loop
 
 ________________________________________________________________
 To-Do:
-[FEATURE] - Describe Your Feature...
-[BUG]     - Describe Your BUG...
+[FEATURE] 
+- Add UI form for prefix / suffix / start value
+- Allow parameter selection
+- Add error handling for missing parameters
+
+[BUG]     
+- None known (PoC stage)
 
 ________________________________________________________________
 Last Updates:
-- [01.01.2026] v1.0 Change Description
-- [01.01.2026] v0.5 Change Description
-- [01.01.2026] v0.1 Change Description 
+- [03.06.2026] v1.0 Proof of Concept
+
 ________________________________________________________________
-Author: Erik Frits (from LearnRevitAPI.com)"""
+Author: Tanmay Bhalerao """
 
 # ╦╔╦╗╔═╗╔═╗╦═╗╔╦╗╔═╗
 # ║║║║╠═╝║ ║╠╦╝ ║ ╚═╗
@@ -50,19 +58,33 @@ uidoc  = __revit__.ActiveUIDocument          # __revit__ is internal variable in
 app    = __revit__.Application
 output = script.get_output()                 # pyRevit Output Menu
 
-# ╔╦╗╔═╗╦╔╗╔
-# ║║║╠═╣║║║║
-# ╩ ╩╩ ╩╩╝╚╝
+# ╔═╗╦═╗╔═╗╔═╗╔═╗  ╔═╗╔═╗  ╔═╗╔═╗╔╗╔╔═╗╔═╗╔═╗╔╦╗
+# ╠═╝╠╦╝║ ║║ ║╠╣   ║ ║╠╣   ║  ║ ║║║║║  ║╣ ╠═╝ ║
+# ╩  ╩╚═╚═╝╚═╝╚    ╚═╝╚    ╚═╝╚═╝╝╚╝╚═╝╚═╝╩   ╩
 #░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-#🤖 Automate Your Boring Work Here
 
+#0️⃣ Numbering Rules
+COUNT_START = 5
+PREFIX      = 'EF-'
+SUFFIX      = ''
 
+#1️⃣ Pick Doors
+from pyrevit import revit
+elem = revit.pick_element_by_category(BuiltInCategory.OST_Doors)
 
-#🚧 Remove This Code Example
-from reusable_code._example import default_print    # import reusable code from .../lib/reusable_code/_example.py
-default_print(btn_name=__title__)                   # Display default print message
+#2️⃣ Create New Value
+value = "{}{:02d}{}".format(PREFIX, COUNT_START, SUFFIX)
+print(value)
 
+# Transaction To Allow Changes
+t = Transaction(doc, 'Click Counter')
+t.Start()   #🔓
 
+#3️⃣ Change Parameter
+p_door_num = elem.LookupParameter('DoorNumber')
+p_door_num.Set(value)
+
+t.Commit()  #🔒
 
 #███████████████████████████████████████████████████████████████████████████
 # Happy Coding!
