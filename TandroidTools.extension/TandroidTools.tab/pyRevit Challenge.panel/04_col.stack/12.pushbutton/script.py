@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 __title__   = "12 - Click Counter"
-__doc__     = """Version = 1.0
-Date    = 03.06.2026
+__doc__     = """Version = 2.0
+Date    = 03.08.2026
 ________________________________________________________________
 Description:
 Renumber elements in Revit by clicking them in sequence.
@@ -20,16 +20,16 @@ How-To:
 ________________________________________________________________
 To-Do:
 [FEATURE] 
-- Add UI form for prefix / suffix / start value
 - Allow parameter selection
 - Add error handling for missing parameters
 
 [BUG]     
-- None known (PoC stage)
+- Ensure integer is provided as input for now (COUNT_START)
 
 ________________________________________________________________
 Last Updates:
-- [03.06.2026] v1.0 Proof of Concept
+- [03.08.2026] V2 Refactored (UI form, warning and while loop)
+- [03.06.2026] v1 Proof of Concept
 
 ________________________________________________________________
 Author: Tanmay Bhalerao """
@@ -58,33 +58,49 @@ uidoc  = __revit__.ActiveUIDocument          # __revit__ is internal variable in
 app    = __revit__.Application
 output = script.get_output()                 # pyRevit Output Menu
 
-# ╔═╗╦═╗╔═╗╔═╗╔═╗  ╔═╗╔═╗  ╔═╗╔═╗╔╗╔╔═╗╔═╗╔═╗╔╦╗
-# ╠═╝╠╦╝║ ║║ ║╠╣   ║ ║╠╣   ║  ║ ║║║║║  ║╣ ╠═╝ ║
-# ╩  ╩╚═╚═╝╚═╝╚    ╚═╝╚    ╚═╝╚═╝╝╚╝╚═╝╚═╝╩   ╩
+# ╦═╗╔═╗╔═╗╔═╗╔═╗╔╦╗╔═╗╦═╗╔═╗╔╦╗  ╔═╗╔═╗╔╦╗╔═╗
+# ╠╦╝║╣ ╠╣ ╠═╣║   ║ ║ ║╠╦╝║╣  ║║  ║  ║ ║ ║║║╣
+# ╩╚═╚═╝╚  ╩ ╩╚═╝ ╩ ╚═╝╩╚═╚═╝═╩╝  ╚═╝╚═╝═╩╝╚═╝
 #░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 
-#0️⃣ Numbering Rules
-COUNT_START = 5
-PREFIX      = 'EF-'
-SUFFIX      = ''
+#0️⃣ Numbering Rules - FlexForm
+
+# Show UI Form
+from rpw.ui.forms import (FlexForm, Label, ComboBox, TextBox, Separator, Button, CheckBox)
+components = [Label('PREFIX:'), TextBox('prefix'), Label('COUNT (int)'), TextBox('count'),
+              Label('SUFFIX:'), TextBox('suffix'), Separator(), Button('Set Renumbering Rules')]
+
+form = FlexForm('Click Counter Rules', components)
+form.show()
+
+# Read UI Form
+input = form.values
+PREFIX      = input['prefix']
+COUNT_START = int(input['count'])
+SUFFIX      = input['suffix']
 
 #1️⃣ Pick Doors
 from pyrevit import revit
-elem = revit.pick_element_by_category(BuiltInCategory.OST_Doors)
+with forms.WarningBar(title='Select Doors to Renumber or hit [ESC] To STOP'):
+    while True:
+        elem = revit.pick_element_by_category(BuiltInCategory.OST_Doors)
+        if not elem:
+            break
 
-#2️⃣ Create New Value
-value = "{}{:02d}{}".format(PREFIX, COUNT_START, SUFFIX)
-print(value)
+        #2️⃣ Create New Value
+        value = "{}{:02d}{}".format(PREFIX, COUNT_START, SUFFIX)
+        COUNT_START += 1
+        print(value)
 
-# Transaction To Allow Changes
-t = Transaction(doc, 'Click Counter')
-t.Start()   #🔓
+        # Transaction To Allow Changes
+        t = Transaction(doc, 'Click Counter')
+        t.Start()   #🔓
 
-#3️⃣ Change Parameter
-p_door_num = elem.LookupParameter('DoorNumber')
-p_door_num.Set(value)
+        #3️⃣ Change Parameter
+        p_door_num = elem.LookupParameter('DoorNumber')
+        p_door_num.Set(value)
 
-t.Commit()  #🔒
+        t.Commit()  #🔒
 
 #███████████████████████████████████████████████████████████████████████████
 # Happy Coding!
