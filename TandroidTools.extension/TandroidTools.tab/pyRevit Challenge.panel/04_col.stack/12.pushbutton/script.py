@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 __title__   = "12 - Click Counter"
-__doc__     = """Version = 2.0
+__doc__     = """Version = 3.0
 Date    = 03.08.2026
 ________________________________________________________________
 Description:
@@ -28,6 +28,7 @@ To-Do:
 
 ________________________________________________________________
 Last Updates:
+- [03.08.2026] V3 Stress Testing (Ensuring form values and parameters exist) 
 - [03.08.2026] V2 Refactored (UI form, warning and while loop)
 - [03.06.2026] v1 Proof of Concept
 
