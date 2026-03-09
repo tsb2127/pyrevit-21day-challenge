@@ -58,9 +58,9 @@ uidoc  = __revit__.ActiveUIDocument          # __revit__ is internal variable in
 app    = __revit__.Application
 output = script.get_output()                 # pyRevit Output Menu
 
-# ╦═╗╔═╗╔═╗╔═╗╔═╗╔╦╗╔═╗╦═╗╔═╗╔╦╗  ╔═╗╔═╗╔╦╗╔═╗
-# ╠╦╝║╣ ╠╣ ╠═╣║   ║ ║ ║╠╦╝║╣  ║║  ║  ║ ║ ║║║╣
-# ╩╚═╚═╝╚  ╩ ╩╚═╝ ╩ ╚═╝╩╚═╚═╝═╩╝  ╚═╝╚═╝═╩╝╚═╝
+# ╔═╗╦╔╗╔╔═╗╦    ╔═╗╔═╗╔╦╗╔═╗
+# ╠╣ ║║║║╠═╣║    ║  ║ ║ ║║║╣
+# ╚  ╩╝╚╝╩ ╩╩═╝  ╚═╝╚═╝═╩╝╚═╝
 #░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 
 #0️⃣ Numbering Rules - FlexForm
@@ -74,10 +74,22 @@ form = FlexForm('Click Counter Rules', components)
 form.show()
 
 # Read UI Form
-input = form.values
-PREFIX      = input['prefix']
-COUNT_START = int(input['count'])
-SUFFIX      = input['suffix']
+#🚨 Ensure Input Available
+if not form.values:
+    forms.alert('No naming rules provided. Please try again', exitscript=True)
+
+
+#🚨Ensure Count is Integer!
+
+try:
+    input = form.values
+    PREFIX      = input['prefix']
+    COUNT_START = int(input['count'])
+    SUFFIX      = input['suffix']
+except:
+    forms.alert('COUNT START should be an integer. Please try again', exitscript=True)
+
+
 
 #1️⃣ Pick Doors
 from pyrevit import revit
@@ -97,7 +109,15 @@ with forms.WarningBar(title='Select Doors to Renumber or hit [ESC] To STOP'):
         t.Start()   #🔓
 
         #3️⃣ Change Parameter
-        p_door_num = elem.LookupParameter('DoorNumber')
+        p_name = 'DoorNumber'
+        p_door_num = elem.LookupParameter(p_name)
+
+        #🚨 Ensure Parameter Exists
+        if not p_door_num:
+            forms.alert('Missing Shared Parameter: "{}"'.format(p_name), exitscript=True)
+            t.RollBack()
+
+        #4️⃣ Set New Value
         p_door_num.Set(value)
 
         t.Commit()  #🔒
