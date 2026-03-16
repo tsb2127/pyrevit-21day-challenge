@@ -1,30 +1,24 @@
 # -*- coding: utf-8 -*-
 __title__   = "13 - Floorify"
 __doc__     = """Version = 1.0
-Date    = 01.01.2026
+Date    = 03.15.2026
 ________________________________________________________________
 Description:
-Placeholder for pyRevit .pushbutton.
-Use it as a base for your new pyRevit tool.
+Creates floors automatically from room boundaries.
 
 ________________________________________________________________
 How-To:
-1. Step 1...
-2. Step 2...
-3. Step 3...
-
-________________________________________________________________
-To-Do:
-[FEATURE] - Describe Your Feature...
-[BUG]     - Describe Your BUG...
+1. Run the tool from the pyRevit ribbon
+2. Select a room in the model
+3. The script reads the room boundary
+4. A floor is automatically created matching the room outline
+5. The created floor is printed in the pyRevit output window
 
 ________________________________________________________________
 Last Updates:
-- [01.01.2026] v1.0 Change Description
-- [01.01.2026] v0.5 Change Description
-- [01.01.2026] v0.1 Change Description 
+- [01.01.2026] v1 Proof of Concept
 ________________________________________________________________
-Author: Erik Frits (from LearnRevitAPI.com)"""
+Author: Tanmay Bhalerao (Template by Erik Frits (from LearnRevitAPI.com))"""
 
 # ╦╔╦╗╔═╗╔═╗╦═╗╔╦╗╔═╗
 # ║║║║╠═╝║ ║╠╦╝ ║ ╚═╗
@@ -50,19 +44,47 @@ uidoc  = __revit__.ActiveUIDocument          # __revit__ is internal variable in
 app    = __revit__.Application
 output = script.get_output()                 # pyRevit Output Menu
 
-# ╔╦╗╔═╗╦╔╗╔
-# ║║║╠═╣║║║║
-# ╩ ╩╩ ╩╩╝╚╝
+
+# ╔═╗╦═╗╔═╗╔═╗╔═╗  ╔═╗╔═╗  ╔═╗╔═╗╔╗╔╔═╗╔═╗╔═╗╔╦╗
+# ╠═╝╠╦╝║ ║║ ║╠╣   ║ ║╠╣   ║  ║ ║║║║║  ║╣ ╠═╝ ║
+# ╩  ╩╚═╚═╝╚═╝╚    ╚═╝╚    ╚═╝╚═╝╝╚╝╚═╝╚═╝╩   ╩
 #░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-#🤖 Automate Your Boring Work Here
 
+#1️⃣ Select Room
+from pyrevit import revit
+room = revit.pick_element_by_category(BuiltInCategory.OST_Rooms)
 
+#2️⃣ Select FloorType
+floor_type_id = doc.GetDefaultElementTypeId(ElementTypeGroup.FloorType)
 
-#🚧 Remove This Code Example
-from reusable_code._example import default_print    # import reusable code from .../lib/reusable_code/_example.py
-default_print(btn_name=__title__)                   # Display default print message
+#3️⃣ Get Room Outline
+opts            = SpatialElementBoundaryOptions()
+room_boundaries = room.GetBoundarySegments(opts)
 
+#4️⃣ Prepare List[CurveLoop]
+# Room -> Boundary -> Segment -> Curve -> CurveLoop -> List[CurveLoop]
+curve_loops = []
+for boundary in room_boundaries:
+    curve_loop = CurveLoop()
+    for seg in boundary:
+        curve = seg.GetCurve()
+        curve_loop.Append(curve)
+    curve_loops.append(curve_loop)
 
+List_curve_loops = List[CurveLoop](curve_loops)
 
+#🔓 Transaction To Allow Changes
+t = Transaction(doc, 'Floorify')
+t.Start()   # 🔓
+
+#5️⃣ Create Floor (Different in API 21/22)
+level_id = room.LevelId
+new_floor = Floor.Create(doc, List_curve_loops, floor_type_id, level_id)
+
+#6️⃣ Create Report
+link_floor = output.linkify(new_floor.Id, new_floor.Name)
+print(link_floor)
+
+t.Commit()  #🔒
 #███████████████████████████████████████████████████████████████████████████
 # Happy Coding!
