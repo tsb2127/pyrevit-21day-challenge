@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 __title__   = "13 - Floorify"
-__doc__     = """Version = 2.0
+__doc__     = """Version = 3.0
 Date    = 03.15.2026
 ________________________________________________________________
 Description:
@@ -18,8 +18,9 @@ How-To:
 
 ________________________________________________________________
 Last Updates:
-- [01.01.2026] v2 Refactored
-_- [01.01.2026] v1 Proof of Concept
+- [03.15.2026] v3 Stress Tested
+- [03.15.2026] v2 Refactored
+- [03.15.2026] v1 Proof of Concept
 _______________________________________________________________
 Author: Tanmay Bhalerao (Template by Erik Frits (from LearnRevitAPI.com))"""
 
@@ -46,6 +47,7 @@ doc    = __revit__.ActiveUIDocument.Document #type:Document
 uidoc  = __revit__.ActiveUIDocument          # __revit__ is internal variable in pyRevit
 app    = __revit__.Application
 output = script.get_output()                 # pyRevit Output Menu
+rvt_year = int(app.VersionNumber)
 
 
 # ╦═╗╔═╗╔═╗╔═╗╔═╗╔╦╗╔═╗╦═╗╔═╗╔╦╗  ╔═╗╔═╗╔╦╗╔═╗
@@ -62,38 +64,59 @@ t.Start()  # 🔓
 from pyrevit import revit
 rooms = revit.pick_elements_by_category(BuiltInCategory.OST_Rooms)
 
+#🚨 Ensure Room Bounded
+rooms = [room for room in rooms if room.Area]
+
+#🚨 Ensure Rooms
+if not rooms:
+    forms.alert('No Bounded Rooms Selected. Please Try Again', exitscript=True)
+
 #2️⃣ Select FloorType
 # floor_type_id = doc.GetDefaultElementTypeId(ElementTypeGroup.FloorType)
+# Prompt User Selection
 floor_types   = FilteredElementCollector(doc).OfClass(FloorType).ToElements()
 dict_floors   = {Element.Name.GetValue(ft) : ft for ft in floor_types}
 selection     = forms.SelectFromList.show(dict_floors.keys(), button_name='Select Floor Type', title='Floorify My Rooms')
+
+#🚨 Ensure FloorType
+if not selection:
+    forms.alert('No FloorType Selected. Please Try Again', exitscript=True)
+
+#  Get FloorType Based on User Input
 floor_type    = dict_floors[selection]
 floor_type_id = floor_type.Id
+
 
 table = []
 
 for room in rooms:
+    #3️⃣ Get Room Outline
     opts = SpatialElementBoundaryOptions()
     opts.SpatialElementBoundaryLocation = SpatialElementBoundaryLocation.Finish #Choose from (CoreBoundary, CoreCenter, Center, Finish)
     room_boundaries = room.GetBoundarySegments(opts)
 
-    #4️⃣ Prepare List[CurveLoop]
-    # Room -> Boundary -> Segment -> Curve -> CurveLoop -> List[CurveLoop]
-    curve_loops = []
-    for boundary in room_boundaries:
-        curve_loop = CurveLoop()
-        for seg in boundary:
-            curve = seg.GetCurve()
-            curve_loop.Append(curve)
-        curve_loops.append(curve_loop)
+    if rvt_year >= 2022:
+        #4️⃣ Prepare List[CurveLoop] [RVT22+]
+        # Room -> Boundary -> Segment -> Curve -> CurveLoop -> List[CurveLoop]
+        curve_loops = []
+        for boundary in room_boundaries:
+            curve_loop = CurveLoop()
+            for seg in boundary:
+                curve = seg.GetCurve()
+                curve_loop.Append(curve)
+            curve_loops.append(curve_loop)
 
-    List_curve_loops = List[CurveLoop](curve_loops)
+        List_curve_loops = List[CurveLoop](curve_loops)
+
+        #5️⃣ Create Floor (Different in API 21/22)
+        level_id = room.LevelId
+        new_floor = Floor.Create(doc, List_curve_loops, floor_type_id, level_id)
 
 
-    #5️⃣ Create Floor (Different in API 21/22)
-    level_id = room.LevelId
-    new_floor = Floor.Create(doc, List_curve_loops, floor_type_id, level_id)
 
+
+    elif rvt_year < 2022:
+        forms.alert('Revit older than 2022 is not supported. Please contact develooper... ', exitscript=True)
 
     # Optionally: Change Parameter
     offset_cm = 100
