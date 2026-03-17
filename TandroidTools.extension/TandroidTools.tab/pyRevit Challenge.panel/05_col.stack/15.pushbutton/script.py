@@ -1,30 +1,23 @@
 # -*- coding: utf-8 -*-
 __title__   = "15 - Workset Grabber"
 __doc__     = """Version = 1.0
-Date    = 01.01.2026
+Date    = 03.17.2026
 ________________________________________________________________
 Description:
-Placeholder for pyRevit .pushbutton.
-Use it as a base for your new pyRevit tool.
+Select a workset and grab all elements inside it.
 
 ________________________________________________________________
 How-To:
-1. Step 1...
-2. Step 2...
-3. Step 3...
-
-________________________________________________________________
-To-Do:
-[FEATURE] - Describe Your Feature...
-[BUG]     - Describe Your BUG...
+1. Run tool
+2. Select a workset
+3. Elements get selected
 
 ________________________________________________________________
 Last Updates:
-- [01.01.2026] v1.0 Change Description
-- [01.01.2026] v0.5 Change Description
-- [01.01.2026] v0.1 Change Description 
+- [03.17.2026] v1 Proof of Concept
+
 ________________________________________________________________
-Author: Erik Frits (from LearnRevitAPI.com)"""
+Author: Tanmay Bhalerao (Template by Erik Frits (from LearnRevitAPI.com))"""
 
 # ╦╔╦╗╔═╗╔═╗╦═╗╔╦╗╔═╗
 # ║║║║╠═╝║ ║╠╦╝ ║ ╚═╗
@@ -49,18 +42,31 @@ doc    = __revit__.ActiveUIDocument.Document #type:Document
 uidoc  = __revit__.ActiveUIDocument          # __revit__ is internal variable in pyRevit
 app    = __revit__.Application
 output = script.get_output()                 # pyRevit Output Menu
+workset_table = doc.GetWorksetTable()
 
-# ╔╦╗╔═╗╦╔╗╔
-# ║║║╠═╣║║║║
-# ╩ ╩╩ ╩╩╝╚╝
+
+# ╔═╗╦═╗╔═╗╔═╗╔═╗  ╔═╗╔═╗  ╔═╗╔═╗╔╗╔╔═╗╔═╗╔═╗╔╦╗
+# ╠═╝╠╦╝║ ║║ ║╠╣   ║ ║╠╣   ║  ║ ║║║║║  ║╣ ╠═╝ ║
+# ╩  ╩╚═╚═╝╚═╝╚    ╚═╝╚    ╚═╝╚═╝╝╚╝╚═╝╚═╝╩   ╩
 #░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-#🤖 Automate Your Boring Work Here
+
+#1️⃣ Get Workset
+sel_workset = FilteredWorksetCollector(doc).OfKind(WorksetKind.UserWorkset).FirstWorkset()
+
+#2️⃣ Get Workset Elements (basic option)
+all_elements = FilteredElementCollector(doc).WhereElementIsNotElementType().WhereElementIsViewIndependent().ToElements()
+
+sel_workset_el_ids = []
+for el in all_elements:
+    workset = workset_table.GetWorkset(el.WorksetId)
+    if workset.Kind == WorksetKind.UserWorkset:
+        if sel_workset.Id == el.WorksetId:
+            sel_workset_el_ids.append(el.Id)
 
 
-
-#🚧 Remove This Code Example
-from reusable_code._example import default_print    # import reusable code from .../lib/reusable_code/_example.py
-default_print(btn_name=__title__)                   # Display default print message
+#3️⃣ Change Selection
+List_el_ids = List[ElementId](sel_workset_el_ids)
+uidoc.Selection.SetElementIds(List_el_ids)
 
 
 
