@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-__title__   = "11 - Dream Picker"
+__title__   = "11 - Parameter Match Picker"
 __doc__     = """Version = 1.0
 Date    = 04.19.2026
 ________________________________________________________________
