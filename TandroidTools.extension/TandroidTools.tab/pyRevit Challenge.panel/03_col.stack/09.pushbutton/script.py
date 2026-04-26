@@ -36,8 +36,8 @@ To-Do:
             from outer scope; should accept it as an argument
 ________________________________________________________________
 Last Updates:
-- [04.19.2026] v1.0 Full apartment-grouped auto-planner
-- [04.19.2026] v0.1 POC — single-element view cropping
+- [04.22.2026] v1.0 Full apartment-grouped auto-planner
+- [04.22.2026] v0.1 POC - single-element view cropping
 ________________________________________________________________
 Author: Tandroid (LearnRevitAPI.com 21-day challenge, Day 9)"""
 

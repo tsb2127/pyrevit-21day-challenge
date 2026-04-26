@@ -29,8 +29,8 @@ To-Do:
             tooltip or full text on hover
 ________________________________________________________________
 Last Updates:
-- [04.20.2026] v1.0 Group-by + UI form + interactive report
-- [04.20.2026] v0.1 POC — flat list of warnings with linkify
+- [04.26.2026] v1.0 Group-by + UI form + interactive report
+- [04.26.2026] v0.1 POC - flat list of warnings with linkify
 ________________________________________________________________
 Author: Tandroid (LearnRevitAPI.com 21-day challenge, Day 8)"""
 
