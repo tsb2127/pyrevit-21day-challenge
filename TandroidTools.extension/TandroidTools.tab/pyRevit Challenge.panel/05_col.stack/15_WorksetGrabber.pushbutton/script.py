@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-__title__   = "Workset Grabber"
+__title__   = "15 - Workset Grabber"
 __doc__     = """Version = 2.0
 Date    = 05.10.2026
 ________________________________________________________________
