@@ -1,43 +1,37 @@
 # -*- coding: utf-8 -*-
 __title__   = "17 - Shared Param Smuggler"
-__doc__     = """Version = 1.0
-Date    = 05.08.2026
+__doc__     = """Version = 1.1
+Date    = 06.13.2026
 ________________________________________________________________
 Description:
 Batch-imports shared parameters from a .txt SharedParameterFile
-into the active project. Asks the user once for: which params
-to import, Instance vs Type, target categories, and parameter
-group. Then imports them all in one transaction.
+into the active project. Two modes:
+  - Same settings for all selected parameters (fast path), or
+  - Per-parameter settings (different categories / binding /
+    group for each parameter).
 
-Replaces a ~30-minute manual chore (Manage > Project Parameters
-> Add > pick category > pick group > repeat for every param)
-with a ~30-second batch operation. Useful at the start of every
-new project, after a firm's shared param library updates, or
-when standardizing across templates.
+All user input is gathered into an import plan FIRST, then the
+plan runs inside a single transaction.
 ________________________________________________________________
 How-To:
-1. Make sure your SharedParameterFile is loaded:
-   Manage tab > Shared Parameters > Browse to your .txt file.
+1. Load your SharedParameterFile (Manage > Shared Parameters).
 2. Click Shared Param Smuggler.
 3. Pick which parameters to import.
-4. Pick Instance or Type.
-5. Pick target categories (multi-select).
-6. Pick the parameter group (where it appears in Properties).
-7. Done. Review the report.
+4. Choose "Same for all" or "Per parameter".
+5. Fill in binding / categories / group (once, or per param).
+6. Review the report.
 ________________________________________________________________
 To-Do:
-[FEATURE] - Per-parameter settings (different categories per
-            param) instead of one-size-fits-all.
-[FEATURE] - Detect "Varies by Group" requirement automatically
-            for params that need it.
+[FEATURE] - "Varies by Group" detection for params that need it.
 [FEATURE] - Import a config preset (JSON) so firms can ship a
-            "import these 30 params with these settings" file.
-[CLEANUP] - The PG_ANALYSIS_RESULTS / GroupTypeId.AnalysisResults
-            switch is hardcoded; user selection now overrides.
+            "load these params with these settings" file.
+[FEATURE] - Let the per-param flow reuse the previous param's
+            answers as defaults to cut clicks.
 ________________________________________________________________
 Last Updates:
+- [06.13.2026] v1.1 Per-parameter settings via plan-then-execute
 - [05.08.2026] v1.0 Full importer with category + group pickers
-- [05.07.2026] v0.1 POC — read SP file and inspect contents
+- [05.07.2026] v0.1 POC - read SP file and inspect contents
 ________________________________________________________________
 Author: Tandroid (LearnRevitAPI.com 21-day challenge, Day 17)"""
 
@@ -48,7 +42,6 @@ Author: Tandroid (LearnRevitAPI.com 21-day challenge, Day 17)"""
 from Autodesk.Revit.DB import *
 from pyrevit import forms, script
 
-# .NET Imports
 import clr
 clr.AddReference('System')
 from System.Collections.Generic import List
@@ -71,38 +64,23 @@ rvt_year = int(app.VersionNumber)
 #░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 
 def get_loaded_parameter_names():
-    """Return the names of all parameters currently bound to the project.
-
-    🎯 CS PATTERN: iterator pattern.
-    BindingMap doesn't support `for x in bm` directly; it exposes a
-    .NET-style ForwardIterator with .MoveNext() and .Key. Same shape
-    as Java/C# iterators or Python generators under the hood — a
-    cursor that walks the collection one item at a time.
-    """
+    """Names of all parameters already bound to the project (iterator pattern)."""
     loaded = []
-    bm = doc.ParameterBindings
-    itor = bm.ForwardIterator()
+    itor = doc.ParameterBindings.ForwardIterator()
     while itor.MoveNext():
-        definition = itor.Key
-        loaded.append(definition.Name)
+        loaded.append(itor.Key.Name)
     return loaded
 
 
 def get_shared_param_definitions(already_loaded_names):
-    """Open the active SharedParameterFile and return a dict of
-    {display_label: ExternalDefinition} for every param NOT already
-    loaded in the project.
-
-    Filtering already-loaded params prevents duplicate imports
-    (which would silently fail anyway, but cluttering the picker
-    with already-imported items is bad UX).
-    """
+    """Open the SharedParameterFile, return {display_label: ExternalDefinition}
+    for params NOT already loaded."""
     sp_file = app.OpenSharedParameterFile()
     if not sp_file:
         forms.alert(
             'No SharedParameterFile is loaded.\n\n'
-            'In Revit: Manage tab > Shared Parameters > Browse to your .txt file.\n'
-            'Then run this tool again.',
+            'Manage tab > Shared Parameters > Browse to your .txt file, '
+            'then run this tool again.',
             exitscript=True,
         )
 
@@ -111,92 +89,104 @@ def get_shared_param_definitions(already_loaded_names):
         for p_def in group.Definitions:
             if p_def.Name in already_loaded_names:
                 continue
-            label = '[{}] {}'.format(group.Name, p_def.Name)
-            available[label] = p_def
+            available['[{}] {}'.format(group.Name, p_def.Name)] = p_def
 
     if not available:
-        forms.alert(
-            'Every parameter in your SharedParameterFile is already '
-            'loaded in this project. Nothing to import.',
-            exitscript=True,
-        )
-
+        forms.alert('Every parameter in the file is already loaded. '
+                    'Nothing to import.', exitscript=True)
     return available
 
 
-def ask_user_for_category_set():
-    """Ask the user to pick which categories the new parameters apply to.
-    Returns a CategorySet object ready to feed into a Binding."""
-    all_cats = [
-        cat for cat in doc.Settings.Categories
-        if cat.AllowsBoundParameters
-    ]
-    cats_by_name = {cat.Name: cat for cat in all_cats}
+def ask_binding_kind(title):
+    """Instance vs Type. Returns 'Instance'/'Type' or None if cancelled."""
+    return forms.alert(
+        'Import as Instance or Type parameter?\n\n'
+        'Instance = each placed element has its own value.\n'
+        'Type = all elements of a type share one value.',
+        title=title,
+        options=['Instance', 'Type'],
+    )
+
+
+def ask_category_set(title):
+    """Pick categories. Returns (CategorySet, [names]) or (None, None)."""
+    all_cats = [c for c in doc.Settings.Categories if c.AllowsBoundParameters]
+    cats_by_name = {c.Name: c for c in all_cats}
 
     selection = forms.SelectFromList.show(
         sorted(cats_by_name.keys()),
         multiselect=True,
-        title='Select target categories',
+        title=title,
         button_name='Confirm categories',
     )
-
     if not selection:
-        forms.alert('No categories selected. Exiting.', exitscript=True)
+        return None, None
 
     cat_set = CategorySet()
-    for cat_name in selection:
-        cat_set.Insert(cats_by_name[cat_name])
+    for name in selection:
+        cat_set.Insert(cats_by_name[name])
     return cat_set, selection
 
 
-def ask_user_for_param_group():
-    """Let the user pick which Properties-panel group the imported
-    params show up under. Critical for clean models — without this,
-    every imported param dumps into 'Analysis Results' regardless
-    of what it actually is.
-
-    🎯 CS PATTERN: API compatibility shim, again.
-    Pre-2024: BuiltInParameterGroup enum.
-    2024+:    GroupTypeId class (ForgeTypeId-style).
-    Same logical concept, two different API shapes.
-    """
-    # Curated list of the most common groups (full list is huge).
-    # Order matches Revit's Properties panel ordering.
+def ask_param_group(title):
+    """Pick the Properties-panel group. Returns (group_id, label) or (None, None).
+    Handles the 2024+ BuiltInParameterGroup -> GroupTypeId API change."""
     common_groups = [
-        ('Identity Data',     'PG_IDENTITY_DATA',     'IdentityData'),
-        ('Construction',      'PG_CONSTRUCTION',      'Construction'),
-        ('Materials and Finishes', 'PG_MATERIALS',    'Materials'),
-        ('Dimensions',        'PG_GEOMETRY',          'Geometry'),
-        ('Analytical',        'PG_ANALYTICAL_MODEL',  'AnalyticalModel'),
-        ('Analysis Results',  'PG_ANALYSIS_RESULTS',  'AnalysisResults'),
-        ('Energy Analysis',   'PG_ENERGY_ANALYSIS',   'EnergyAnalysis'),
-        ('Phasing',           'PG_PHASING',           'Phasing'),
-        ('Other',             'PG_DATA',              'Data'),
+        ('Identity Data',          'PG_IDENTITY_DATA',    'IdentityData'),
+        ('Construction',           'PG_CONSTRUCTION',     'Construction'),
+        ('Materials and Finishes', 'PG_MATERIALS',        'Materials'),
+        ('Dimensions',             'PG_GEOMETRY',         'Geometry'),
+        ('Analysis Results',       'PG_ANALYSIS_RESULTS', 'AnalysisResults'),
+        ('Phasing',                'PG_PHASING',          'Phasing'),
+        ('Other',                  'PG_DATA',             'Data'),
     ]
-
     selection = forms.SelectFromList.show(
         [name for name, _, _ in common_groups],
         multiselect=False,
-        title='Where should these params show up in the Properties panel?',
+        title=title,
         button_name='Confirm group',
     )
-
     if not selection:
-        forms.alert('No parameter group selected. Exiting.', exitscript=True)
+        return None, None
 
-    # Find the matching tuple
     for label, old_name, new_name in common_groups:
         if label == selection:
             if rvt_year < 2024:
-                return getattr(BuiltInParameterGroup, old_name)
-            else:
-                return getattr(GroupTypeId, new_name)
+                return getattr(BuiltInParameterGroup, old_name), label
+            return getattr(GroupTypeId, new_name), label
+    return None, None
 
-    # Fallback (shouldn't reach here)
-    if rvt_year < 2024:
-        return BuiltInParameterGroup.PG_DATA
+
+def gather_settings(prompt_label):
+    """Gather ONE complete settings bundle (binding + group + summary).
+    Returns a dict, or None if the user cancels any step.
+
+    🎯 This is the unit of the 'plan'. It does NO document modification
+    and opens NO transaction. It only collects choices."""
+    kind = ask_binding_kind('Binding for {}'.format(prompt_label))
+    if not kind:
+        return None
+
+    cat_set, cat_names = ask_category_set('Categories for {}'.format(prompt_label))
+    if not cat_set:
+        return None
+
+    p_group, group_label = ask_param_group('Group for {}'.format(prompt_label))
+    if not p_group:
+        return None
+
+    if kind == 'Instance':
+        binding = app.Create.NewInstanceBinding(cat_set)
     else:
-        return GroupTypeId.Data
+        binding = app.Create.NewTypeBinding(cat_set)
+
+    return {
+        'binding': binding,
+        'p_group': p_group,
+        'kind': kind,
+        'cat_names': cat_names,
+        'group_label': group_label,
+    }
 
 
 # ╔╦╗╔═╗╦╔╗╔
@@ -204,91 +194,107 @@ def ask_user_for_param_group():
 # ╩ ╩╩ ╩╩╝╚╝
 #░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
 
-# 1️⃣ Find what's already loaded so we don't show duplicates
+# 1️⃣ Find what's loaded, open the file, pick params
 loaded_names = get_loaded_parameter_names()
+dict_p_def   = get_shared_param_definitions(loaded_names)
 
-
-# 2️⃣ Open the SharedParameterFile, build pickable list
-dict_p_def = get_shared_param_definitions(loaded_names)
-
-
-# 3️⃣ User picks which params to import
 selection = forms.SelectFromList.show(
     sorted(dict_p_def.keys()),
     multiselect=True,
     title=__title__,
-    button_name='Import shared parameters',
+    button_name='Next: choose settings',
 )
 if not selection:
-    forms.alert('No shared parameters selected to import. Exiting.', exitscript=True)
-
-p_def_to_load = [dict_p_def[label] for label in selection]
+    forms.alert('No parameters selected. Exiting.', exitscript=True)
 
 
-# 4️⃣ User picks Instance vs Type
-sel_binding_kind = forms.alert(
-    'Import as Instance or Type parameter?\n\n'
-    'Instance = each placed element gets its own value (e.g., Mark).\n'
-    'Type = all elements of a type share one value (e.g., Fire Rating).',
-    options=['Instance', 'Type'],
+# 2️⃣ PLANNING PHASE - build the import plan (no transaction yet)
+# 🎯 default-vs-override: fast path applies one bundle to all; the
+# per-param path gathers a bundle for each. Either way we end up with
+# a list of jobs to execute.
+mode = forms.alert(
+    'How should settings be applied?\n\n'
+    'Same for all = one set of binding/categories/group for every param.\n'
+    'Per parameter = configure each parameter separately.',
+    title='Settings mode',
+    options=['Same for all', 'Per parameter'],
 )
-if not sel_binding_kind:
-    forms.alert('No binding kind selected. Exiting.', exitscript=True)
+if not mode:
+    forms.alert('No mode selected. Exiting.', exitscript=True)
+
+jobs = []     # each job: (label, ExternalDefinition, settings_dict)
+skipped = []  # params the user cancelled out of (per-param mode)
+
+if mode == 'Same for all':
+    settings = gather_settings('all selected parameters')
+    if not settings:
+        forms.alert('Settings cancelled. Exiting.', exitscript=True)
+    for label in selection:
+        jobs.append((label, dict_p_def[label], settings))
+
+else:  # Per parameter
+    for label in selection:
+        settings = gather_settings(label)
+        if not settings:
+            # Cancelling one param skips just that param, not the whole run
+            skipped.append(label)
+            continue
+        jobs.append((label, dict_p_def[label], settings))
+
+if not jobs:
+    forms.alert('No parameters configured for import. Exiting.', exitscript=True)
 
 
-# 5️⃣ User picks target categories
-cat_set, selected_cat_names = ask_user_for_category_set()
-
-
-# 6️⃣ Build the actual Binding object
-if sel_binding_kind == 'Instance':
-    binding = app.Create.NewInstanceBinding(cat_set)
-else:
-    binding = app.Create.NewTypeBinding(cat_set)
-
-
-# 7️⃣ User picks the parameter group (where it shows in Properties)
-p_group = ask_user_for_param_group()
-
-
-# 8️⃣ Run the import inside a transaction
+# 3️⃣ EXECUTION PHASE - run the plan in one transaction
+# 🎯 plan-then-execute: every choice is already made; the transaction
+# just applies the list. Simple, fast, and either-succeeds-or-reports.
 imported = []
-failed = []
+failed   = []
 
 t = Transaction(doc, __title__)
 t.Start()
 
-for p_def in p_def_to_load:
+for label, p_def, settings in jobs:
     try:
-        success = doc.ParameterBindings.Insert(p_def, binding, p_group)
-        if success:
-            imported.append(p_def.Name)
+        ok = doc.ParameterBindings.Insert(p_def, settings['binding'], settings['p_group'])
+        row = [p_def.Name, settings['kind'],
+               ', '.join(sorted(settings['cat_names'])), settings['group_label']]
+        if ok:
+            imported.append(row)
         else:
-            failed.append((p_def.Name, "Insert returned False (likely already bound or rejected)"))
+            failed.append([p_def.Name, 'Insert returned False (already bound or rejected)'])
     except Exception as e:
-        failed.append((p_def.Name, str(e)))
+        failed.append([p_def.Name, str(e)])
 
 t.Commit()
 
 
-# 9️⃣ Report
+# 4️⃣ Report
 output.print_md('# Shared Param Smuggler Report')
-output.print_md('- **Source file:** {}'.format(app.OpenSharedParameterFile().Filename))
-output.print_md('- **Binding:** {} parameter'.format(sel_binding_kind))
-output.print_md('- **Categories:** {}'.format(', '.join(sorted(selected_cat_names))))
+output.print_md('- **Mode:** {}'.format(mode))
 output.print_md('- **Imported:** {}'.format(len(imported)))
-output.print_md('- **Failed:**   {}'.format(len(failed)))
+output.print_md('- **Failed:** {}'.format(len(failed)))
+output.print_md('- **Skipped:** {}'.format(len(skipped)))
 output.print_md('---')
 
 if imported:
-    output.print_md('### Imported successfully')
-    for name in imported:
-        output.print_md('- {}'.format(name))
+    output.print_table(
+        table_data=imported,
+        title='Imported',
+        columns=['Parameter', 'Binding', 'Categories', 'Group'],
+    )
 
 if failed:
-    output.print_md('### Failed')
-    for name, reason in failed:
-        output.print_md('- **{}**: {}'.format(name, reason))
+    output.print_table(
+        table_data=failed,
+        title='Failed',
+        columns=['Parameter', 'Reason'],
+    )
+
+if skipped:
+    output.print_md('### Skipped (cancelled during setup)')
+    for label in skipped:
+        output.print_md('- {}'.format(label))
 
 #███████████████████████████████████████████████████████████████████████████
 # Happy Coding!
